@@ -1,0 +1,220 @@
+The complexity claims (Proposition 2.12) for the FFT in Z_3329 was obtained with FFTW.
+
+More precisly we slightly modified FFTW 3.3.10 (http://www.fftw.org/fftw-3.3.10.tar.gz):
+In the file kernel/planner.c: we replaced the "X(iestimate_cost)" function by
+	double X(iestimate_cost)(const planner *ego, const plan *pln, const problem *p)
+	{
+		double C_mul = 1024;
+		double C_add = 5*32;
+		double cost =
+		+ C_add*pln->ops.add
+		+ C_mul*pln->ops.mul
+		
+		+ ( C_mul + C_add)* pln->ops.fma
+		
+		;
+		if (ego->cost_hook){
+			cost = ego->cost_hook(p, cost, COST_MAX);
+		}
+		
+		return cost;
+	}
+In the file kernel/planner.c: we replaced the "evaluate_plan" function by
+	static void evaluate_plan(planner *ego, plan *pln, const problem *p)
+	{
+		if (ESTIMATEP(ego) || !BELIEVE_PCOSTP(ego) || pln->pcost == 0.0) {
+		ego->nplan++;
+
+		//if (ESTIMATEP(ego)) {
+		if(1){
+			estimate:
+			#ifdef FFTW_RANDOM_ESTIMATOR
+					pln->pcost = random_estimate(ego, pln, p);
+					ego->epcost += X(iestimate_cost)(ego, pln, p);
+			#else
+					pln->pcost = X(iestimate_cost)(ego, pln, p);
+					ego->epcost += pln->pcost;
+			#endif
+				} else {
+					double t = X(measure_execution_time)(ego, pln, p);
+					if (t < 0) {  /* unavailable cycle counter */
+						/* Real programmers can write FORTRAN in any language */
+						goto estimate;
+					}
+					pln->pcost = t;
+					ego->pcost += t;
+					ego->need_timeout_check = 1;
+				}
+		}
+		
+		invoke_hook(ego, pln, p, 0);
+	}
+
+then we ran 
+	#./configure
+	#make
+	#./tests/bench -v2 -oexhaustive -owisdom 3329
+
+This last command returned the following output:
+		(dft-rader-3329/is=2/os=2
+		(dft-r2hc-3328
+			(rdft-ct-dit/16
+			(hc2hc-directbuf/18-16/30-x2 "hf_16"
+				(rdft-ct-dit/8
+				(hc2hc-directbuf/10-8/6 "hf2_8"
+					(rdft-ct-dit/4
+					(hc2hc-directbuf/6-4/4 "hf2_4"
+						(rdft-ct-dit/2
+						(hc2hc-directbuf/6-2/2 "hf_2"
+							(rdft-r2hc-directbuf/6-r2c-2 "r2cf_2")
+							(rdft-r2hc01-directbuf/6-r2c-2 "r2cfII_2"))
+						(rdft-r2hc-directbuf/6-r2c-2-x2 "r2cf_2"))
+						(rdft-r2hc01-directbuf/6-r2c-4 "r2cfII_4"))
+					(rdft-r2hc-directbuf/6-r2c-2-x4 "r2cf_2"))
+					(rdft-r2hc01-directbuf/10-r2c-8 "r2cfII_8"))
+				(rdft-buffered-2-x8/8-0
+					(rdft-r2hc-directbuf/6-r2c-2-x8 "r2cf_2")
+					(rdft-vrank>=1-x2/-1
+					(rdft-vrank>=1-x8/1
+						(rdft-rank0-iter-ci/1)))
+					(rdft-nop)))
+				(rdft-r2hc01-directbuf/18-r2c-16 "r2cfII_16"))
+			(rdft-vrank>=1-x2/-1
+				(rdft-ct-dit/16
+				(hc2hc-directbuf/18-16/30-x16 "hf_16"
+					(rdft-ct-dit/8
+					(hc2hc-directbuf/10-8/6 "hf2_8"
+						(rdft-ct-dit/4
+						(hc2hc-directbuf/6-4/4 "hf2_4"
+							(rdft-ct-dit/2
+							(hc2hc-directbuf/6-2/2 "hf_2"
+								(rdft-r2hc-directbuf/6-r2c-2 "r2cf_2")
+								(rdft-r2hc01-directbuf/6-r2c-2 "r2cfII_2"))
+							(rdft-r2hc-directbuf/6-r2c-2-x2 "r2cf_2"))
+							(rdft-r2hc01-directbuf/6-r2c-4 "r2cfII_4"))
+						(rdft-r2hc-directbuf/6-r2c-2-x4 "r2cf_2"))
+						(rdft-r2hc01-directbuf/10-r2c-8 "r2cfII_8"))
+					(rdft-buffered-2-x8/8-0
+						(rdft-r2hc-directbuf/6-r2c-2-x8 "r2cf_2")
+						(rdft-vrank>=1-x2/-1
+						(rdft-vrank>=1-x8/1
+							(rdft-rank0-iter-ci/1)))
+						(rdft-nop)))
+					(rdft-nop))
+				(rdft-vrank>=1-x16/-1
+					(rdft-r2hc-directbuf/18-r2c-13-x16 "r2cf_13"))))))
+		(dft-r2hc-3328
+			(rdft-ct-dit/16
+			(hc2hc-directbuf/18-16/30-x2 "hf_16"
+				(rdft-ct-dit/8
+				(hc2hc-directbuf/10-8/6 "hf2_8"
+					(rdft-ct-dit/4
+					(hc2hc-directbuf/6-4/4 "hf2_4"
+						(rdft-ct-dit/2
+						(hc2hc-directbuf/6-2/2 "hf_2"
+							(rdft-r2hc-directbuf/6-r2c-2 "r2cf_2")
+							(rdft-r2hc01-directbuf/6-r2c-2 "r2cfII_2"))
+						(rdft-r2hc-directbuf/6-r2c-2-x2 "r2cf_2"))
+						(rdft-r2hc01-directbuf/6-r2c-4 "r2cfII_4"))
+					(rdft-r2hc-directbuf/6-r2c-2-x4 "r2cf_2"))
+					(rdft-r2hc01-directbuf/10-r2c-8 "r2cfII_8"))
+				(rdft-buffered-2-x8/8-0
+					(rdft-r2hc-directbuf/6-r2c-2-x8 "r2cf_2")
+					(rdft-vrank>=1-x2/-1
+					(rdft-vrank>=1-x8/1
+						(rdft-rank0-iter-ci/1)))
+					(rdft-nop)))
+				(rdft-r2hc01-directbuf/18-r2c-16 "r2cfII_16"))
+			(rdft-vrank>=1-x2/-1
+				(rdft-ct-dit/16
+				(hc2hc-directbuf/18-16/30-x16 "hf_16"
+					(rdft-ct-dit/8
+					(hc2hc-directbuf/10-8/6 "hf2_8"
+						(rdft-ct-dit/4
+						(hc2hc-directbuf/6-4/4 "hf2_4"
+							(rdft-ct-dit/2
+							(hc2hc-directbuf/6-2/2 "hf_2"
+								(rdft-r2hc-directbuf/6-r2c-2 "r2cf_2")
+								(rdft-r2hc01-directbuf/6-r2c-2 "r2cfII_2"))
+							(rdft-r2hc-directbuf/6-r2c-2-x2 "r2cf_2"))
+							(rdft-r2hc01-directbuf/6-r2c-4 "r2cfII_4"))
+						(rdft-r2hc-directbuf/6-r2c-2-x4 "r2cf_2"))
+						(rdft-r2hc01-directbuf/10-r2c-8 "r2cfII_8"))
+					(rdft-buffered-2-x8/8-0
+						(rdft-r2hc-directbuf/6-r2c-2-x8 "r2cf_2")
+						(rdft-vrank>=1-x2/-1
+						(rdft-vrank>=1-x8/1
+							(rdft-rank0-iter-ci/1)))
+						(rdft-nop)))
+					(rdft-nop))
+				(rdft-vrank>=1-x16/-1
+					(rdft-r2hc-directbuf/18-r2c-13-x16 "r2cf_13"))))))
+		(dft-r2hc-3328
+			(rdft-ct-dit/16
+			(hc2hc-directbuf/18-16/30-x2 "hf_16"
+				(rdft-ct-dit/8
+				(hc2hc-directbuf/10-8/6 "hf2_8"
+					(rdft-ct-dit/4
+					(hc2hc-directbuf/6-4/4 "hf2_4"
+						(rdft-ct-dit/2
+						(hc2hc-directbuf/6-2/2 "hf_2"
+							(rdft-r2hc-directbuf/6-r2c-2 "r2cf_2")
+							(rdft-r2hc01-directbuf/6-r2c-2 "r2cfII_2"))
+						(rdft-r2hc-directbuf/6-r2c-2-x2 "r2cf_2"))
+						(rdft-r2hc01-directbuf/6-r2c-4 "r2cfII_4"))
+					(rdft-r2hc-directbuf/6-r2c-2-x4 "r2cf_2"))
+					(rdft-r2hc01-directbuf/10-r2c-8 "r2cfII_8"))
+				(rdft-buffered-2-x8/8-0
+					(rdft-r2hc-directbuf/6-r2c-2-x8 "r2cf_2")
+					(rdft-vrank>=1-x2/-1
+					(rdft-vrank>=1-x8/1
+						(rdft-rank0-iter-ci/1)))
+					(rdft-nop)))
+				(rdft-r2hc01-directbuf/18-r2c-16 "r2cfII_16"))
+			(rdft-vrank>=1-x2/1
+				(rdft-buffered-208-x16/16-6
+				(rdft-ct-dit/16
+					(hc2hc-directbuf/18-16/30-x16 "hf_16"
+					(rdft-ct-dit/8
+						(hc2hc-directbuf/10-8/6 "hf2_8"
+						(rdft-ct-dit/4
+							(hc2hc-directbuf/6-4/4 "hf2_4"
+							(rdft-ct-dit/2
+								(hc2hc-directbuf/6-2/2 "hf_2"
+								(rdft-r2hc-directbuf/6-r2c-2 "r2cf_2")
+								(rdft-r2hc01-directbuf/6-r2c-2 "r2cfII_2"))
+								(rdft-r2hc-directbuf/6-r2c-2-x2 "r2cf_2"))
+							(rdft-r2hc01-directbuf/6-r2c-4 "r2cfII_4"))
+							(rdft-r2hc-directbuf/6-r2c-2-x4 "r2cf_2"))
+						(rdft-r2hc01-directbuf/10-r2c-8 "r2cfII_8"))
+						(rdft-buffered-2-x8/8-0
+						(rdft-r2hc-directbuf/6-r2c-2-x8 "r2cf_2")
+						(rdft-vrank>=1-x2/-1
+							(rdft-vrank>=1-x8/1
+							(rdft-rank0-iter-ci/1)))
+						(rdft-nop)))
+					(rdft-nop))
+					(rdft-vrank>=1-x16/-1
+					(rdft-r2hc-directbuf/18-r2c-13-x16 "r2cf_13")))
+				(rdft-vrank>=1-x208/-1
+					(rdft-vrank>=1-x16/1
+					(rdft-rank0-iter-ci/1)))
+				(rdft-nop))))))
+		flops: 190476 add, 65904 mul, 50024 fma
+		estimated cost: 157190272.000000, pcost = 157190272.000000
+		Problem: 3329, setup: 15.80 s, time: 314.12 us, ``mflops'': 620.01125
+		Took 8 measurements for at least 10.00 ms each.
+		Time: min 314.12 us, max 830.62 us, avg 493.14 us, median 538.00 us
+		write wisdom took 0.000599 seconds
+
+
+along with the wisdome file wis.dat.
+
+The line
+"flops: 190476 add, 65904 mul, 50024 fma"
+allows us to conclude that the number of addition is "190476 + 50024 = 240500" and the number of multiplication is  "65904 + 50024 = 115928" as claimed in the article.
+
+
+
+
+
