@@ -1,0 +1,5 @@
+# run make in folder before
+# require G6K and FPYLLL
+# The virtual env must have the Galois python module
+
+# run_statistics.py is the main file to launch to create statistics for Pwrong and Pgood
